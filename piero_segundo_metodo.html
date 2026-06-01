@@ -207,6 +207,11 @@
 </head>
 <body>
 
+<!-- Página principal:
+     - Controles para la distancia del ojo, altura, rotación y dimensiones del cubo.
+     - Paneles SVG para mostrar la vista cenital, la proyección final y una vista 3D.
+     - Tablas para ver las coordenadas 3D originales y las coordenadas proyectadas.
+-->
 <div class="hero">
   <h1>Proyección de un cubo en perspectiva</h1>
   <p>Visualiza cómo un cubo 3D se proyecta en un plano de cuadro desde la posición del ojo. Ajusta la distancia, altura, rotación y tamaño del cubo para ver los efectos en tiempo real.</p>
@@ -292,6 +297,8 @@
     <table class="verts" id="tbl-proj">
       <tr><th></th><th>x'</th><th>y'</th></tr>
     </table>
+    <!-- Fórmulas de proyección usadas para calcular x' e y' en el cuadro.
+         Se muestran aquí de forma didáctica con los valores actuales de d y h. -->
     <div class="formula">
       x' = x·<span id="fd">d</span> / (<span id="fd2">d</span>+z)
       &nbsp;&nbsp;
@@ -301,9 +308,20 @@
 </div>
 
 <script>
+// Etiquetas de los vértices del cubo.
 const LABELS = ['A','B','C','D','E','F','G','H'];
+// Paleta de colores para dibujar cada vértice y arista.
 const COLORS = ['#D85A30','#1D9E75','#534AB7','#BA7517','#1B7FD1','#A02C8C','#2F9C94','#8C6D28'];
 
+/**
+ * Calcula las coordenadas de los 8 vértices de un cubo centrado en el eje Y.
+ * @param {number} cx - Posición del cubo en el eje X.
+ * @param {number} cz - Posición del cubo en el eje Z.
+ * @param {number} halfSide - Medio lado del cubo en el plano XZ.
+ * @param {number} height - Altura del cubo en Y.
+ * @param {number} angleDeg - Rotación del cubo en grados alrededor del eje Y.
+ * @returns {Array<{x:number,y:number,z:number}>} Vértices del cubo.
+ */
 function getCubeVertices(cx, cz, halfSide, height, angleDeg) {
   const a = angleDeg * Math.PI / 180;
   const base = [0,1,2,3].map(i => {
@@ -315,18 +333,30 @@ function getCubeVertices(cx, cz, halfSide, height, angleDeg) {
 }
 
 function project(v, d, h) {
+  // La distancia d es fija para toda la proyección; el efecto de profundidad
+  // viene de v.z, la distancia del punto al plano del cuadro.
   const denom = d + v.z;
-  return { xp: v.x * d / denom, yp: (h * v.z + d * v.y) / denom };
+  return {
+    // x' = x · d / (d + z)
+    xp: v.x * d / denom,
+    // y' = (h · z + d · y) / (d + z)
+    yp: (h * v.z + d * v.y) / denom
+  };
 }
 
 function fmt(n) { return n.toFixed(2); }
 
 function drawTop(verts, d) {
+  // Dibuja la vista cenital del cubo y las líneas de proyección hacia el cuadro.
   const svg = document.getElementById('svg-top');
   const W=280, H=240;
-  // coordinate mapping: x in [-4,4], z in [0,8]
-  const mx = v => (v.x + 4) / 8 * (W-40) + 20;
-  const mz = v => (1 - v.z / 8) * (H-50) + 20;
+  // Igualamos escala X/Z para que el cubo no se vea distorsionado en la vista superior.
+  const size = Math.min(W-40, H-40);
+  const scale = size / 8;
+  const offsetX = 20 + ((W-40) - size) / 2;
+  const offsetY = 20 + ((H-40) - size) / 2;
+  const mx = v => offsetX + (v.x + 4) * scale;
+  const mz = v => offsetY + (8 - v.z) * scale;
 
   let html = `<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
 
@@ -375,6 +405,11 @@ function drawTop(verts, d) {
   svg.innerHTML = html;
 }
 
+/**
+ * Dibuja la proyección en el plano de cuadro.
+ * @param {Array<{xp:number,yp:number}>} pverts - Coordenadas proyectadas de los vértices.
+ * @param {number} h - Altura del ojo, usada para ubicar el punto de fuga.
+ */
 function drawPersp(pverts, h) {
   const svg = document.getElementById('svg-persp');
   const W=280, H=240;
@@ -436,6 +471,10 @@ function drawPersp(pverts, h) {
   svg.innerHTML = html;
 }
 
+/**
+ * Actualiza las tablas de coordenadas reales y proyectadas.
+ * Muestra los valores X, Y, Z originales y las coordenadas X'/Y' del cuadro.
+ */
 function updateTables(verts, pverts) {
   let r = '<tr><th></th><th>x</th><th>y</th><th>z</th></tr>';
   verts.forEach((v,i) => {
@@ -450,6 +489,11 @@ function updateTables(verts, pverts) {
   document.getElementById('tbl-proj').innerHTML = p;
 }
 
+/**
+ * Proyección isométrica simple para mostrar la vista 3D del cubo.
+ * No es una proyección de perspectiva real, solo ayuda a visualizar
+ * la posición del cubo en el espacio con un ángulo fijo.
+ */
 function project3D(v) {
   const angle = Math.PI / 6;
   return {
@@ -458,6 +502,10 @@ function project3D(v) {
   };
 }
 
+/**
+ * Dibuja una vista 3D conceptual del cubo en el panel derecho.
+ * Este gráfico ayuda a entender la posición del cubo, el ojo y la base.
+ */
 function draw3D(verts, d, h) {
   const svg = document.getElementById('svg-3d');
   const W = 280, H = 240;
@@ -518,6 +566,7 @@ function draw3D(verts, d, h) {
 }
 
 function update() {
+  // Lectura de parámetros de usuario desde los controles de la interfaz.
   const d = parseFloat(document.getElementById('sld-d').value);
   const h = parseFloat(document.getElementById('sld-h').value);
   const r = parseFloat(document.getElementById('sld-r').value);
@@ -539,7 +588,8 @@ function update() {
   const size = parseFloat(document.getElementById('sld-size').value);
   document.getElementById('val-size').textContent = size;
 
-  const verts = getCubeVertices(cx, cz, size, a, r);
+  // El slider 'size' representa la longitud total del lado del cubo en X/Z.
+  const verts = getCubeVertices(cx, cz, size / 2, a, r);
   const pverts = verts.map(v => project(v, d, h));
 
   drawTop(verts, d);
