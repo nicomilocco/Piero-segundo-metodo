@@ -234,14 +234,14 @@
     </div>
   </div>
   <div class="ctrl">
-    <label>rotación cubo</label>
+    <label>rotación figura</label>
     <div style="display:flex;align-items:center;gap:8px">
       <input type="range" min="0" max="89" step="1" value="45" id="sld-r" oninput="update()">
       <span id="val-r">45°</span>
     </div>
   </div>
   <div class="ctrl">
-    <label>altura cubo</label>
+    <label>altura figura</label>
     <div style="display:flex;align-items:center;gap:8px">
       <input type="range" min="1" max="4" step="0.5" value="2" id="sld-a" oninput="update()">
       <span id="val-a">2</span>
@@ -262,10 +262,20 @@
     </div>
   </div>
   <div class="ctrl">
-    <label>tamaño cubo</label>
+    <label>tamaño figura</label>
     <div style="display:flex;align-items:center;gap:8px">
       <input type="range" min="0.5" max="3" step="0.25" value="1" id="sld-size" oninput="update()">
       <span id="val-size">1</span>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label>figura</label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <select id="sel-shape" onchange="update()">
+        <option value="cubo">Cubo</option>
+        <option value="hexagono">Hexágono</option>
+        <option value="piramide">Pirámide</option>
+      </select>
     </div>
   </div>
 </div>
@@ -287,7 +297,7 @@
 
 <div class="panel-grid" style="margin-top:10px;">
   <div class="panel">
-    <h3>Coordenadas reales (cubo)</h3>
+    <h3>Coordenadas reales (figura)</h3>
     <table class="verts" id="tbl-real">
       <tr><th></th><th>x</th><th>y</th><th>z</th></tr>
     </table>
@@ -308,10 +318,10 @@
 </div>
 
 <script>
-// Etiquetas de los vértices del cubo.
-const LABELS = ['A','B','C','D','E','F','G','H'];
-// Paleta de colores para dibujar cada vértice y arista.
-const COLORS = ['#D85A30','#1D9E75','#534AB7','#BA7517','#1B7FD1','#A02C8C','#2F9C94','#8C6D28'];
+// Etiquetas de los vértices de la figura.
+const LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+// Paleta de colores para dibujar vértices y aristas.
+const COLORS = ['#D85A30','#1D9E75','#534AB7','#BA7517','#1B7FD1','#A02C8C','#2F9C94','#8C6D28','#1E3A8A','#B91C1C','#047857','#92400E'];
 
 /**
  * Calcula las coordenadas de los 8 vértices de un cubo centrado en el eje Y.
@@ -332,6 +342,38 @@ function getCubeVertices(cx, cz, halfSide, height, angleDeg) {
   return base.concat(top);
 }
 
+function getHexagonVertices(cx, cz, radius, height, angleDeg) {
+  const a = angleDeg * Math.PI / 180;
+  const base = Array.from({ length: 6 }, (_, i) => {
+    const ia = a + i * Math.PI / 3;
+    return { x: cx + radius * Math.cos(ia), y: 0, z: cz + radius * Math.sin(ia) };
+  });
+  const top = base.map(v => ({ x: v.x, y: height, z: v.z }));
+  return base.concat(top);
+}
+
+function getPyramidVertices(cx, cz, halfSide, height, angleDeg) {
+  const a = angleDeg * Math.PI / 180;
+  const base = [0,1,2,3].map(i => {
+    const ia = a + i * Math.PI / 2;
+    return { x: cx + halfSide * Math.cos(ia), y: 0, z: cz + halfSide * Math.sin(ia) };
+  });
+  const apex = { x: cx, y: height, z: cz };
+  return base.concat([apex]);
+}
+
+function getShapeVertices(shape, cx, cz, size, height, angleDeg) {
+  switch (shape) {
+    case 'hexagono':
+      return getHexagonVertices(cx, cz, size, height, angleDeg);
+    case 'piramide':
+      return getPyramidVertices(cx, cz, size, height, angleDeg);
+    case 'cubo':
+    default:
+      return getCubeVertices(cx, cz, size, height, angleDeg);
+  }
+}
+
 function project(v, d, h) {
   // La distancia d es fija para toda la proyección; el efecto de profundidad
   // viene de v.z, la distancia del punto al plano del cuadro.
@@ -346,7 +388,37 @@ function project(v, d, h) {
 
 function fmt(n) { return n.toFixed(2); }
 
-function drawTop(verts, d) {
+function getShapeEdges(shape) {
+  switch (shape) {
+    case 'hexagono': {
+      const edges = [];
+      for (let i = 0; i < 6; i += 1) {
+        edges.push([i, (i + 1) % 6]);
+        edges.push([6 + i, 6 + ((i + 1) % 6)]);
+        edges.push([i, 6 + i]);
+      }
+      return edges;
+    }
+    case 'piramide':
+      return [
+        [0,1],[1,2],[2,3],[3,0],
+        [0,4],[1,4],[2,4],[3,4]
+      ];
+    case 'cubo':
+    default:
+      return [
+        [0,1],[1,2],[2,3],[3,0],
+        [4,5],[5,6],[6,7],[7,4],
+        [0,4],[1,5],[2,6],[3,7]
+      ];
+  }
+}
+
+function getShapeBaseCount(shape) {
+  return shape === 'hexagono' ? 6 : 4;
+}
+
+function drawTop(shape, verts, d) {
   // Dibuja la vista cenital del cubo y las líneas de proyección hacia el cuadro.
   const svg = document.getElementById('svg-top');
   const W=280, H=240;
@@ -393,7 +465,7 @@ function drawTop(verts, d) {
   });
 
   // Base footprint
-  const baseVerts = verts.slice(0,4);
+  const baseVerts = verts.slice(0, getShapeBaseCount(shape));
   const poly = baseVerts.map(v => `${mx(v)},${mz(v)}`).join(' ');
   html += `<polygon points="${poly}" fill="var(--color-background-info)" fill-opacity="0.2" stroke="#185FA5" stroke-width="1.2"/>`;
 
@@ -410,7 +482,13 @@ function drawTop(verts, d) {
  * @param {Array<{xp:number,yp:number}>} pverts - Coordenadas proyectadas de los vértices.
  * @param {number} h - Altura del ojo, usada para ubicar el punto de fuga.
  */
-function drawPersp(pverts, h) {
+/**
+ * Dibuja la proyección en el plano de cuadro.
+ * @param {string} shape - Nombre de la figura seleccionada.
+ * @param {Array<{xp:number,yp:number}>} pverts - Coordenadas proyectadas.
+ * @param {number} h - Altura del ojo.
+ */
+function drawPersp(shape, pverts, h) {
   const svg = document.getElementById('svg-persp');
   const W=280, H=240;
   // map projected coords to canvas: xp in [-3,3], yp in [0,4]
@@ -425,11 +503,11 @@ function drawPersp(pverts, h) {
   const vp_x = mx(vp_xp);
   const vp_y = my(vp_yp);
 
-  // Lines from base vertices (0,1,2,3) to vanishing point
-  const baseVertIndices = [0, 1, 2, 3];
-  baseVertIndices.forEach((i) => {
+  // Lines from base vertices to vanishing point
+  const baseCount = getShapeBaseCount(shape);
+  for (let i = 0; i < baseCount; i += 1) {
     html += `<line x1="${mx(pverts[i].xp)}" y1="${my(pverts[i].yp)}" x2="${vp_x}" y2="${vp_y}" stroke="#A0B0C0" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.5"/>`;
-  });
+  }
 
   // Mark vanishing point
   html += `<circle cx="${vp_x}" cy="${vp_y}" r="2" fill="#D0D8E0" opacity="0.7"/>`;
@@ -451,11 +529,7 @@ function drawPersp(pverts, h) {
     html += `<line x1="${px}" y1="20" x2="${px}" y2="${H-30}" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>`;
   }
 
-  const edges = [
-    [0,1],[1,2],[2,3],[3,0],
-    [4,5],[5,6],[6,7],[7,4],
-    [0,4],[1,5],[2,6],[3,7]
-  ];
+  const edges = getShapeEdges(shape);
   edges.forEach(([i,j]) => {
     html += `<line x1="${mx(pverts[i].xp)}" y1="${my(pverts[i].yp)}" x2="${mx(pverts[j].xp)}" y2="${my(pverts[j].yp)}" stroke="#185FA5" stroke-width="1"/>`;
   });
@@ -506,7 +580,11 @@ function project3D(v) {
  * Dibuja una vista 3D conceptual del cubo en el panel derecho.
  * Este gráfico ayuda a entender la posición del cubo, el ojo y la base.
  */
-function draw3D(verts, d, h) {
+/**
+ * Dibuja una vista 3D conceptual del cubo en el panel derecho.
+ * Soporta cubo, hexágono y pirámide.
+ */
+function draw3D(shape, verts, d, h) {
   const svg = document.getElementById('svg-3d');
   const W = 280, H = 240;
   const offsetX = 140, offsetY = 165;
@@ -543,16 +621,7 @@ function draw3D(verts, d, h) {
   html += `<text x="${eye.x+6}" y="${eye.y+4}" font-size="9" fill="var(--color-text-secondary)">ojo</text>`;
 
   const projected = verts.map(v => map(project3D(v)));
-  const faceA = [0,1,2,3].map(i => `${projected[i].x},${projected[i].y}`).join(' ');
-  const faceB = [4,5,6,7].map(i => `${projected[i].x},${projected[i].y}`).join(' ');
-  html += `<polygon points="${faceA}" fill="var(--color-background-info)" fill-opacity="0.15"/>`;
-  html += `<polygon points="${faceB}" fill="var(--color-background-info)" fill-opacity="0.10"/>`;
-
-  const edges = [
-    [0,1],[1,2],[2,3],[3,0],
-    [4,5],[5,6],[6,7],[7,4],
-    [0,4],[1,5],[2,6],[3,7]
-  ];
+  const edges = getShapeEdges(shape);
   edges.forEach(([i,j]) => {
     html += `<line x1="${projected[i].x}" y1="${projected[i].y}" x2="${projected[j].x}" y2="${projected[j].y}" stroke="#185FA5" stroke-width="1.2"/>`;
   });
@@ -587,14 +656,15 @@ function update() {
   document.getElementById('val-cz').textContent = cz;
   const size = parseFloat(document.getElementById('sld-size').value);
   document.getElementById('val-size').textContent = size;
+  const shape = document.getElementById('sel-shape').value;
 
-  // El slider 'size' representa la longitud total del lado del cubo en X/Z.
-  const verts = getCubeVertices(cx, cz, size / 2, a, r);
+  const shapeSize = shape === 'hexagono' ? size : size / 2;
+  const verts = getShapeVertices(shape, cx, cz, shapeSize, a, r);
   const pverts = verts.map(v => project(v, d, h));
 
-  drawTop(verts, d);
-  drawPersp(pverts, h);
-  draw3D(verts, d, h);
+  drawTop(shape, verts, d);
+  drawPersp(shape, pverts, h);
+  draw3D(shape, verts, d, h);
   updateTables(verts, pverts);
 }
 
