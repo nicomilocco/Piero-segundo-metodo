@@ -274,6 +274,7 @@
       <select id="sel-shape" onchange="update()">
         <option value="cubo">Cubo</option>
         <option value="hexagono">Hexágono</option>
+        <option value="poligono32">Polígono 32 lados</option>
         <option value="piramide">Pirámide</option>
       </select>
     </div>
@@ -319,9 +320,13 @@
 
 <script>
 // Etiquetas de los vértices de la figura.
-const LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+const BASE_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 // Paleta de colores para dibujar vértices y aristas.
-const COLORS = ['#D85A30','#1D9E75','#534AB7','#BA7517','#1B7FD1','#A02C8C','#2F9C94','#8C6D28','#1E3A8A','#B91C1C','#047857','#92400E'];
+const COLORS = ['#D85A30','#1D9E75','#534AB7','#BA7517','#1B7FD1','#A02C8C','#2F9C94','#8C6D28','#1E3A8A','#B91C1C','#047857','#92400E','#0F766E','#4338CA','#7C3AED','#BE123C','#F59E0B','#F97316','#15803D','#0EA5E9','#0F172A','#525252','#9D174D','#2563EB','#16A34A','#F43F5E'];
+
+function getLabel(i) {
+  return i < BASE_LABELS.length ? BASE_LABELS[i] : `${i + 1}`;
+}
 
 /**
  * Calcula las coordenadas de los 8 vértices de un cubo centrado en el eje Y.
@@ -342,10 +347,10 @@ function getCubeVertices(cx, cz, halfSide, height, angleDeg) {
   return base.concat(top);
 }
 
-function getHexagonVertices(cx, cz, radius, height, angleDeg) {
+function getRegularPrismVertices(cx, cz, sides, radius, height, angleDeg) {
   const a = angleDeg * Math.PI / 180;
-  const base = Array.from({ length: 6 }, (_, i) => {
-    const ia = a + i * Math.PI / 3;
+  const base = Array.from({ length: sides }, (_, i) => {
+    const ia = a + i * (2 * Math.PI / sides);
     return { x: cx + radius * Math.cos(ia), y: 0, z: cz + radius * Math.sin(ia) };
   });
   const top = base.map(v => ({ x: v.x, y: height, z: v.z }));
@@ -365,7 +370,9 @@ function getPyramidVertices(cx, cz, halfSide, height, angleDeg) {
 function getShapeVertices(shape, cx, cz, size, height, angleDeg) {
   switch (shape) {
     case 'hexagono':
-      return getHexagonVertices(cx, cz, size, height, angleDeg);
+      return getRegularPrismVertices(cx, cz, 6, size, height, angleDeg);
+    case 'poligono32':
+      return getRegularPrismVertices(cx, cz, 32, size, height, angleDeg);
     case 'piramide':
       return getPyramidVertices(cx, cz, size, height, angleDeg);
     case 'cubo':
@@ -390,12 +397,14 @@ function fmt(n) { return n.toFixed(2); }
 
 function getShapeEdges(shape) {
   switch (shape) {
-    case 'hexagono': {
+    case 'hexagono':
+    case 'poligono32': {
+      const sides = shape === 'hexagono' ? 6 : 32;
       const edges = [];
-      for (let i = 0; i < 6; i += 1) {
-        edges.push([i, (i + 1) % 6]);
-        edges.push([6 + i, 6 + ((i + 1) % 6)]);
-        edges.push([i, 6 + i]);
+      for (let i = 0; i < sides; i += 1) {
+        edges.push([i, (i + 1) % sides]);
+        edges.push([sides + i, sides + ((i + 1) % sides)]);
+        edges.push([i, sides + i]);
       }
       return edges;
     }
@@ -415,7 +424,9 @@ function getShapeEdges(shape) {
 }
 
 function getShapeBaseCount(shape) {
-  return shape === 'hexagono' ? 6 : 4;
+  if (shape === 'hexagono') return 6;
+  if (shape === 'poligono32') return 32;
+  return 4;
 }
 
 function drawTop(shape, verts, d) {
@@ -471,7 +482,7 @@ function drawTop(shape, verts, d) {
 
   baseVerts.forEach((v,i) => {
     html += `<circle cx="${mx(v)}" cy="${mz(v)}" r="3" fill="${COLORS[i]}"/>`;
-    html += `<text x="${mx(v)+6}" y="${mz(v)-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${LABELS[i]}</text>`;
+    html += `<text x="${mx(v)+6}" y="${mz(v)-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${getLabel(i)}</text>`;
   });
 
   svg.innerHTML = html;
@@ -536,7 +547,7 @@ function drawPersp(shape, pverts, h) {
 
   pverts.forEach((p,i) => {
     html += `<circle cx="${mx(p.xp)}" cy="${my(p.yp)}" r="3" fill="${COLORS[i]}"/>`;
-    html += `<text x="${mx(p.xp)+5}" y="${my(p.yp)-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${LABELS[i]}</text>`;
+    html += `<text x="${mx(p.xp)+5}" y="${my(p.yp)-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${getLabel(i)}</text>`;
   });
 
   // x axis label
@@ -552,13 +563,13 @@ function drawPersp(shape, pverts, h) {
 function updateTables(verts, pverts) {
   let r = '<tr><th></th><th>x</th><th>y</th><th>z</th></tr>';
   verts.forEach((v,i) => {
-    r += `<tr><td style="color:${COLORS[i]};font-weight:500">${LABELS[i]}</td><td>${fmt(v.x)}</td><td>${fmt(v.y)}</td><td>${fmt(v.z)}</td></tr>`;
+    r += `<tr><td style="color:${COLORS[i]};font-weight:500">${getLabel(i)}</td><td>${fmt(v.x)}</td><td>${fmt(v.y)}</td><td>${fmt(v.z)}</td></tr>`;
   });
   document.getElementById('tbl-real').innerHTML = r;
 
   let p = '<tr><th></th><th>x\'</th><th>y\'</th></tr>';
   pverts.forEach((v,i) => {
-    p += `<tr><td style="color:${COLORS[i]};font-weight:500">${LABELS[i]}</td><td>${fmt(v.xp)}</td><td>${fmt(v.yp)}</td></tr>`;
+    p += `<tr><td style="color:${COLORS[i]};font-weight:500">${getLabel(i)}</td><td>${fmt(v.xp)}</td><td>${fmt(v.yp)}</td></tr>`;
   });
   document.getElementById('tbl-proj').innerHTML = p;
 }
@@ -628,7 +639,7 @@ function draw3D(shape, verts, d, h) {
   verts.forEach((v,i) => {
     const p = projected[i];
     html += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${COLORS[i]}"/>`;
-    html += `<text x="${p.x+4}" y="${p.y-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${LABELS[i]}</text>`;
+    html += `<text x="${p.x+4}" y="${p.y-4}" font-size="8" fill="${COLORS[i]}" font-weight="500">${getLabel(i)}</text>`;
   });
 
   svg.innerHTML = html;
@@ -658,7 +669,7 @@ function update() {
   document.getElementById('val-size').textContent = size;
   const shape = document.getElementById('sel-shape').value;
 
-  const shapeSize = shape === 'hexagono' ? size : size / 2;
+  const shapeSize = (shape === 'hexagono' || shape === 'poligono32') ? size : size / 2;
   const verts = getShapeVertices(shape, cx, cz, shapeSize, a, r);
   const pverts = verts.map(v => project(v, d, h));
 
